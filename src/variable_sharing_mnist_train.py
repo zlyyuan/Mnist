@@ -6,7 +6,7 @@ from tf_utils import random_mini_batches, convert_to_one_hot
 OUTPUT_NODE = 10 # 10 classes
 LAYER1_NODE = 500
 INPUT_NODE = 784
-def load_data(path="dataset/data/mnist.npz"):
+def load_data(path="../dataset/mnist.npz"):
 	f = np.load(path)
 	x_train, y_train = f['x_train'], f['y_train']
 	x_test, y_test = f['x_test'], f['y_test']
@@ -26,7 +26,6 @@ def average_wights(avg_class, weights):
 	else: 
 		return avg_class.average(weights)
 
-
 def inference( input_tensor, regularizer, avg_class, i_reuse=False):
 
 	with tf.variable_scope('layer1', reuse=i_reuse):
@@ -38,7 +37,7 @@ def inference( input_tensor, regularizer, avg_class, i_reuse=False):
 	with tf.variable_scope('layer2', reuse=i_reuse):
 		weights = get_weights_variable([LAYER1_NODE, OUTPUT_NODE], regularizer)
 		biases = tf.get_variable("biases", [OUTPUT_NODE], initializer = tf.constant_initializer(0.0))
-		layer2=tf.nn.relu(tf.matmul(layer1, average_wights(avg_class, weights))+biases)
+		layer2=tf.matmul(layer1, average_wights(avg_class, weights))+biases
 
 	return layer2
 
@@ -50,7 +49,7 @@ def train():
 	LEARNING_RATE_DECAY = 0.99
 
 	REGULARIZATION_RATE = 0.0001
-	TRAINING_STEPS = 30000
+	TRAINING_STEPS = 5000
 	MOVING_AVERAGE_DECAY = 0.99
 
 
@@ -76,8 +75,9 @@ def train():
 	input_x_size = tf.convert_to_tensor(input_x_flatten_size, dtype = tf.int32)
 	input_x_number_examples = tf.convert_to_tensor(x_reshape_train.shape[0], dtype=tf.int32)
 
-	x = tf.placeholder(tf.float32,  shape = (None, input_x_flatten_size), name = 'x-input')
-	y_ = tf.placeholder(tf.float32, shape = (None, OUTPUT_NODE), name = 'y-input')
+	with tf.name_scope('input'):
+		x = tf.placeholder(tf.float32,  shape = (None, input_x_flatten_size), name = 'x-input')
+		y_ = tf.placeholder(tf.float32, shape = (None, OUTPUT_NODE), name = 'y-input')
 
 
 	# weights1 = tf.Variable(tf.truncated_normal([input_x_size, LAYER1_NODE], stddev = 0.1), name = "weights1")
@@ -92,32 +92,34 @@ def train():
 
 	# Step of training number
 	global_step = tf.Variable(0, trainable=False)
-
-	variabl_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
-	variabl_averages_op = variabl_averages.apply(tf.trainable_variables())
+	with tf.name_scope('moving_average'):
+		variabl_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
+		variabl_averages_op = variabl_averages.apply(tf.trainable_variables())
 	#print(tf.trainable_variables())
 	# Forward propagation using sliding average
 	
 	average_y = inference(x, regularizer, variabl_averages, True)
 
-	# loss function
-	cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits = y, labels = tf.argmax(y_, 1))
-	cross_entropy_mean = tf.reduce_mean(cross_entropy)
+	with tf.name_scope('loss_function'):
+		# loss function
+		cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits = y, labels = tf.argmax(y_, 1))
+		cross_entropy_mean = tf.reduce_mean(cross_entropy)
 
-	# regularizer = tf.contrib.layers.l2_regularizer(REGULARIZATION_RATE)
-	# regularization = regularizer(weights1) + regularizer(weights2)
-	# Note using 'tf.add_n(tf.getcollection('lossess'))' replace original regularization method
+		# regularizer = tf.contrib.layers.l2_regularizer(REGULARIZATION_RATE)
+		# regularization = regularizer(weights1) + regularizer(weights2)
+		# Note using 'tf.add_n(tf.getcollection('lossess'))' replace original regularization method
+		loss = cross_entropy_mean + tf.add_n(tf.get_collection('lossess'))
+	
+	with tf.name_scope('train_step'):
+		# learning rate decay
+		learning_rate = tf.train.exponential_decay( LEARNING_RATE_BASE, global_step, input_x_number_examples/BATCH_SIZE, LEARNING_RATE_DECAY)
 
-	loss = cross_entropy_mean + tf.add_n(tf.get_collection('lossess'))
-	# learning rate decay
-	learning_rate = tf.train.exponential_decay( LEARNING_RATE_BASE, global_step, input_x_number_examples/BATCH_SIZE, LEARNING_RATE_DECAY)
+		# Note as from https://www.tensorflow.org/api_docs/python/tf/train/GradientDescentOptimizer
+		# global_step: Optional Variable to increment by one after the variables have been updated.
+		train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step = global_step)
 
-	# Note as from https://www.tensorflow.org/api_docs/python/tf/train/GradientDescentOptimizer
-	# global_step: Optional Variable to increment by one after the variables have been updated.
-	train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step = global_step)
-
-	with tf.control_dependencies([train_step, variabl_averages_op]):
-		train_op = tf.no_op(name = 'train')
+		with tf.control_dependencies([train_step, variabl_averages_op]):
+			train_op = tf.no_op(name = 'train')
 
 	correct_prediction = tf.equal(tf.argmax(average_y, 1), tf.argmax(y_, 1))
 	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -149,16 +151,13 @@ def train():
 				mini_batches = random_mini_batches(tf.transpose(x_reshape_train), tf.transpose(y_reshape_train), BATCH_SIZE, seed)
 			
 			mini_x_batches, mini_y_batches = mini_batches[k]
-
-			
-	#print("----cross_mean shape: ", cross_entropy_mean.shape, " collection shape:", tf.add_n(tf.get_collection('losses')).shape )
-	
 			sess.run(train_op, feed_dict = {x: mini_x_batches, y_: mini_y_batches})
 
 		test_acc = sess.run(accuracy, feed_dict = test_feed)
 		print("After %d training step(s), testing accuracy using average model is %g" % (i, validate_acc))
 
-
+	writer = tf.summary.FileWriter("../log2", tf.get_default_graph())
+	writer.close()
 
 if __name__ == "__main__":
 	train()	
