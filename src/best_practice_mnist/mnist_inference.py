@@ -4,12 +4,6 @@ INPUT_NODE = 784
 LAYER_1_NODE = 500
 OUTPUT_NODE = 10
 
-def average_wights(avg_class, weights):
-	if avg_class == None :
-		return weights
-	else: 
-		return avg_class.average(weights)
-
 def get_weights_variable(shape, regularizer):
 	weights = tf.get_variable("weights", shape, initializer = tf.truncated_normal_initializer(stddev = 0.1))
 
@@ -18,7 +12,7 @@ def get_weights_variable(shape, regularizer):
 	return weights
 
 
-def inference( input_tensor, regularizer, avg_class):
+def inference( input_tensor, regularizer):
 
 	with tf.variable_scope('layer1'):
 		weights = get_weights_variable([INPUT_NODE, LAYER_1_NODE], regularizer)
