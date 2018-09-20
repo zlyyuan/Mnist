@@ -123,9 +123,13 @@ def forward_propagation(X, parameters):
 
     # FULLY-CONNECTED without non-linear activation function (not not call softmax).
     # 6 neurons in output layer. Hint: one of the arguments should be "activation_fn=None"
-    Z3 = tf.contrib.layers.fully_connected(P2, num_outputs=512)
+    regularizer = tf.contrib.layers.l2_regularizer(REGULARIZATION_RATE)
+    Z3 = tf.contrib.layers.fully_connected(P2, num_outputs=512
+                                           , weights_regularizer=tf.contrib.layers.l2_regularizer(REGULARIZATION_RATE))
 
-    Z4 = tf.contrib.layers.fully_connected(Z3, num_outputs=10, activation_fn=None)
+    Z4 = tf.contrib.layers.fully_connected(Z3, num_outputs=10
+                                           , weights_regularizer=tf.contrib.layers.l2_regularizer(REGULARIZATION_RATE)
+                                           , activation_fn=None)
     ### END CODE HERE ###
 
     return Z4
@@ -144,7 +148,14 @@ def compute_cost(Z3, Y):
     """
 
     ### START CODE HERE ### (1 line of code)
+    reg_ws = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    for w in reg_ws:
+        shp = w.get_shape().as_list()
+        print("- {} shape:{} size:{}".format(w.name, shp, np.prod(shp)))
+    print("")
+
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=Z3, labels=Y))
+    cost = cost + tf.reduce_sum(reg_ws)
     ### END CODE HERE ###
 
     return cost
