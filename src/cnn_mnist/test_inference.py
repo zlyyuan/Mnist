@@ -101,24 +101,34 @@ def forward_propagation(X, parameters):
     ### START CODE HERE ###
     # CONV2D: stride of 1, padding 'SAME'
     Z1 = tf.nn.conv2d(X, W1, strides=[1, 1, 1, 1], padding='SAME')
+    conv1_bias = tf.get_variable("conv1_bias", [CONV1_DEEP], initializer=tf.constant_initializer(0.0))
     # RELU
-    A1 = tf.nn.relu(Z1)
+    A1 = tf.nn.relu(tf.nn.bias_add(Z1, conv1_bias))
+
     # MAXPOOL: window 2x2, sride 2, padding 'SAME'
     P1 = tf.nn.max_pool(A1, ksize=[1, POOL1_SIZE, POOL1_SIZE, 1], strides=[1, POOL1_STEP, POOL1_STEP, 1], padding='SAME')
+
     # CONV2D: filters W2, stride 1, padding 'SAME'
     Z2 = tf.nn.conv2d(P1, W2, strides=[1, 1, 1, 1], padding='SAME')
+    conv2_bias = tf.get_variable("conv2_bias", [CONV2_DEEP], initializer=tf.constant_initializer(0.0))
     # RELU
-    A2 = tf.nn.relu(Z2)
+    A2 = tf.nn.relu(tf.nn.bias_add(Z2, conv2_bias))
+
     # MAXPOOL: window 4x4, stride 4, padding 'SAME'
     P2 = tf.nn.max_pool(A2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+
     # FLATTEN
     P2 = tf.contrib.layers.flatten(P2)
+
+
     # FULLY-CONNECTED without non-linear activation function (not not call softmax).
     # 6 neurons in output layer. Hint: one of the arguments should be "activation_fn=None"
-    Z3 = tf.contrib.layers.fully_connected(P2, num_outputs=10, activation_fn=None)
+    Z3 = tf.contrib.layers.fully_connected(P2, num_outputs=512)
+
+    Z4 = tf.contrib.layers.fully_connected(Z3, num_outputs=10, activation_fn=None)
     ### END CODE HERE ###
 
-    return Z3
+    return Z4
 
 
 def compute_cost(Z3, Y):
